@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useState, useEffect } from 'react';
 
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -13,52 +13,40 @@ import { Modal } from 'components/Modal/Modal';
 
 import * as API from '../services/image-api';
 
-export class App extends Component {
-  state = {
-    searchQuery: '',
-    images: [],
-    status: 'idle',
-    isModalOpen: false,
-    image: null,
+export const App = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [images, setImages] = useState([]);
+  const [status, setStatus] = useState('idle');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [image, setImage] = useState(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-    page: 1,
-    totalPages: 1,
-  };
+  useEffect(() => {
+    if (!searchQuery) {
+      return;
+    }
 
-  async componentDidUpdate(prevProps, prevState) {
-    const { searchQuery, page } = this.state;
+    setStatus('pending');
 
-    if (prevState.searchQuery !== searchQuery || prevState.page !== page) {
-      try {
-        this.setState({ status: 'pending' });
-
-        const data = await API.fetchImages(searchQuery.trim(), page);
-
+    API.fetchImages(searchQuery.trim(), page)
+      .then(data => {
         if (data.hits.length === 0) {
-          this.setState({ status: 'rejected', images: [] });
+          setStatus('rejected');
+          setImages([]);
           return;
         }
 
-        // if (prevState.searchQuery !== searchQuery) {
-        //   this.setState({
-        //     images: [...data.hits],
-        //     status: 'resolved',
-        //     totalPages: Math.ceil(data.totalHits / 12),
-        //   });
-        // }
-
-        this.setState(prevState => ({
-          images: [...prevState.images, ...data.hits],
-          status: 'resolved',
-          totalPages: Math.ceil(data.totalHits / 12),
-        }));
-      } catch (error) {
+        setImages(images => [...images, ...data.hits]);
+        setTotalPages(Math.ceil(data.totalHits / 12));
+      })
+      .catch(error => {
         console.log(error);
-      }
-    }
-  }
+      })
+      .finally(setStatus('resolved'));
+  }, [searchQuery, page]);
 
-  handleSubmit = searchQuery => {
+  const handleSubmit = searchQuery => {
     if (!searchQuery) {
       toast.error('Please, enter some text', {
         position: 'top-right',
@@ -66,65 +54,62 @@ export class App extends Component {
       });
       return;
     }
-    this.setState({ searchQuery, images: [], page: 1 });
-    this.pageScrollToTop();
+
+    setSearchQuery(searchQuery);
+    setImages([]);
+    setPage(1);
+
+    pageScrollToTop();
   };
 
-  handleLoad = () => {
-    this.setState(prevState => ({ page: prevState.page + 1 }));
+  const handleLoad = () => {
+    setPage(page + 1);
   };
 
-  handleModalOpen = id => {
-    const image = this.state.images.find(image => image.id === Number(id));
+  const handleModalOpen = id => {
+    const image = images.find(image => image.id === Number(id));
 
-    this.setState({ image });
-    this.onModalOpen();
+    setImage(image);
+    onModalOpen();
   };
 
-  onModalOpen = () => {
-    this.setState({ isModalOpen: true });
+  const onModalOpen = () => {
+    setIsModalOpen(true);
   };
 
-  onModalClose = () => {
-    this.setState({ isModalOpen: false });
+  const onModalClose = () => {
+    setIsModalOpen(false);
   };
 
-  pageScrollToTop() {
+  const pageScrollToTop = () => {
     window.scrollTo({
       top: 0,
       behavior: 'smooth',
     });
     return;
-  }
+  };
 
-  render() {
-    const { images, status, totalPages, page, isModalOpen, image } = this.state;
+  return (
+    <>
+      <GlobalStyle />
+      <Wrapper>
+        <Toaster />
+        <Searchbar onSubmit={handleSubmit} />
 
-    return (
-      <>
-        <GlobalStyle />
-        <Wrapper>
-          <Toaster />
-          <Searchbar onSubmit={this.handleSubmit} />
-          {/* {status === 'resolved' && (
-            <ImageGallery items={images} onClick={this.handleModalOpen} />
-          )} */}
+        {images.length > 0 && (
+          <ImageGallery items={images} onClick={handleModalOpen} />
+        )}
 
-          {images.length > 0 && (
-            <ImageGallery items={images} onClick={this.handleModalOpen} />
-          )}
+        {page < totalPages && images.length > 0 && status === 'resolved' && (
+          <Button onClick={handleLoad} />
+        )}
 
-          {page < totalPages && images.length > 0 && status === 'resolved' && (
-            <Button onClick={this.handleLoad} />
-          )}
+        {status === 'pending' && <Loader />}
 
-          {status === 'pending' && <Loader />}
+        {status === 'rejected' && <ErrorMessage />}
 
-          {status === 'rejected' && <ErrorMessage />}
-
-          {isModalOpen && <Modal item={image} onClose={this.onModalClose} />}
-        </Wrapper>
-      </>
-    );
-  }
-}
+        {isModalOpen && <Modal item={image} onClose={onModalClose} />}
+      </Wrapper>
+    </>
+  );
+};
