@@ -33,7 +33,6 @@ export const App = () => {
       .then(data => {
         if (data.hits.length === 0) {
           setStatus('rejected');
-          setImages([]);
           return;
         }
 
@@ -63,7 +62,7 @@ export const App = () => {
   };
 
   const handleLoad = () => {
-    setPage(page + 1);
+    setPage(prevPage => prevPage + 1);
   };
 
   const handleModalOpen = id => {
